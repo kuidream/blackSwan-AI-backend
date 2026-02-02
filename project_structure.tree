@@ -1,0 +1,56 @@
+.
+├── cmd/
+│   └── api/
+│       └── main.go
+├── internal/
+│   ├── app/
+│   │   ├── bootstrap/            # 组装依赖：DB、缓存、LLM、路由、WS、定时任务
+│   │   └── wire/                 # 依赖注入（手写或用 wire；仅负责“连线”）
+│   ├── config/                   # 配置结构体与加载（env/file），不含业务逻辑
+│   ├── domain/
+│   │   ├── player/               # 玩家聚合：身份、余额口径、领域接口（Repo Ports）
+│   │   ├── iot/                  # IoT 聚合：同步、风控口径、映射规则抽象
+│   │   ├── market/               # 市场聚合：tick、事件、订单/成交/仓位的领域模型
+│   │   ├── sanity/               # San 聚合：状态机、扣减/恢复规则（纯业务）
+│   │   ├── npc/                  # NPC 聚合：好感度、行程、互动结算（纯业务）
+│   │   └── shared/               # 跨域共享：ID、时间、错误码、Result 等（尽量薄）
+│   ├── usecase/
+│   │   ├── auth/                 # 应用服务：login/refresh/logout（编排，不落地细节）
+│   │   ├── iot/                  # 编排：sync -> 风控 -> 结算 -> 入账 -> 返回
+│   │   ├── market/               # 编排：下单 -> 校验 -> 撮合/成交 -> 账本 -> 仓位
+│   │   ├── tripx/                # 编排：单日/时间槽推进
+│   │   ├── shop/                 # 编排：购买 -> 冷却/限额 -> 扣款 -> 发放
+│   │   └── npc/                  # 编排：互动 -> 扣款 -> 好感/回 san -> 剧情事件
+│   ├── repository/
+│   │   ├── gorm/                 # 基于 GORM 的 Repo 适配器实现（implements domain ports）
+│   │   └── cache/                # Redis/内存缓存适配器（如今日风格、情报缓存）
+│   ├── transport/
+│   │   ├── http/
+│   │   │   ├── handler/          # Gin handlers（只做鉴权/参数校验/DTO 映射）
+│   │   │   ├── middleware/       # JWT、request_id、rate limit、recover、CORS 等
+│   │   │   └── dto/              # HTTP 请求/响应 DTO（与 domain/usecase 解耦）
+│   │   └── ws/
+│   │       ├── hub/              # WS 连接管理、订阅、广播
+│   │       └── protocol/         # WS 消息结构（与 market tick/event 对齐）
+│   ├── infra/
+│   │   ├── db/                   # DB 初始化、迁移执行器、事务封装（不含业务）
+│   │   ├── llm/                  # LLM Client、重试、降级、敏感词过滤
+│   │   ├── scheduler/            # 定时任务框架封装（00:00 演进、清理 tick 等）
+│   │   └── observability/        # 日志/指标/追踪（zap/otel 等，按实际选型）
+│   └── worker/
+│       ├── evolution/            # 每日风格生成 Job（调用 usecase，不直接碰 repo）
+│       └── retention/            # tick/审计数据保留策略 Job
+├── migrations/                   # SQL 迁移（schema 版本化；生产必须）
+├── api/                          # OpenAPI/Swagger（如需要；不放业务实现）
+├── scripts/                      # 本地开发脚本（启动依赖、生成等）
+├── go.mod
+└── go.sum
+
+目录作用与避免循环引用（关键规则）
+1) 依赖方向固定为：transport -> usecase -> domain <- repository/infra
+2) domain 只放“业务规则与接口（Ports）”，禁止 import transport/repository/infra
+3) repository 只实现 domain 定义的接口：domain 定义 Repository 接口，gorm 负责实现（依赖反转）
+4) usecase 只编排：通过 domain 接口调用 repo/外部服务；不把 Gin Context 传入 usecase
+5) DTO 隔离：HTTP/WS 的请求响应结构放 transport/**/dto 与 ws/protocol，domain/usecase 不依赖这些 DTO
+6) shared 只放最小公共件：错误码、ID/时间工具、Result；不要把各域类型塞进 shared，避免“公共包巨石”导致反向依赖
+7) 事务边界在 usecase：usecase 接收 Tx 抽象（或 UnitOfWork 接口）并控制一致性，repo 不互相调用
