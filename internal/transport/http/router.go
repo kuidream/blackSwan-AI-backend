@@ -10,13 +10,16 @@ import (
 func NewRouter() *gin.Engine {
 	router := gin.New()
 
-	// TODO: Add middleware (logger, recovery, CORS, etc.)
-	// router.Use(middleware.Logger())
-	// router.Use(middleware.Recovery())
-	// router.Use(middleware.CORS())
+	// Middleware
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+	router.Use(corsMiddleware())
 
 	// Health check endpoint
 	router.GET("/health", healthCheck)
+	
+	// Serve test page
+	router.StaticFile("/test", "./web/api-test.html")
 
 	// API v1 routes
 	v1 := router.Group("/v1")
@@ -46,4 +49,20 @@ func ping(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "pong",
 	})
+}
+
+// corsMiddleware adds CORS headers for local development
+func corsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Idempotency-Key")
+		
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		
+		c.Next()
+	}
 }
