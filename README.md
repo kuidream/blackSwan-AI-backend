@@ -1,8 +1,50 @@
-# blackSwan AI Backend - 开发规范文档
-
-## 项目概述
+# blackSwan AI Backend
 
 blackSwan 是一个基于现实映射的、无限流风格的自动演进式 RPG 游戏后端系统。项目采用 Golang + PostgreSQL 技术栈，结合 AI 大模型实现动态世界演进机制。
+
+## 快速开始
+
+### 1. 环境准备
+
+确保已安装:
+- Go 1.21+
+- PostgreSQL 14+
+- Redis 6+
+
+### 2. 配置环境
+
+```bash
+# 复制环境配置
+cp .env.example .env
+
+# 编辑 .env 文件，填入数据库和 Redis 连接信息
+```
+
+### 3. 安装依赖
+
+```bash
+go mod download
+```
+
+### 4. 运行服务
+
+```bash
+go run cmd/api/main.go
+```
+
+服务启动在 http://localhost:8080
+
+### 5. 测试接口
+
+```bash
+# 健康检查
+curl http://localhost:8080/health
+
+# API 测试
+curl http://localhost:8080/v1/ping
+```
+
+## 项目概述
 
 ## 技术架构
 
