@@ -4,8 +4,20 @@
 
 ### Windows
 
+**方式一：命令行安装（推荐）**
+
+若已安装 winget（Windows 10/11 通常自带）:
+
+```powershell
+winget install GoLang.Go
+```
+
+安装完成后**关闭并重新打开终端**，再执行 `go version` 验证。
+
+**方式二：手动安装**
+
 1. 下载 Go 安装包: https://go.dev/dl/
-2. 运行安装程序
+2. 运行安装程序（默认会写入 PATH）
 3. 验证安装:
    ```powershell
    go version
@@ -118,6 +130,17 @@ curl http://localhost:8080/v1/ping
 ```
 
 ## 常见问题
+
+### go mod tidy 下载依赖超时 / dial tcp connectex 失败
+
+默认代理 proxy.golang.org 在国内或受限网络下可能超时。改用国内代理后重试:
+
+```powershell
+go env -w GOPROXY=https://goproxy.cn,direct
+go mod tidy
+```
+
+备选: `GOPROXY=https://goproxy.io,direct`
 
 ### Go 命令未找到
 
