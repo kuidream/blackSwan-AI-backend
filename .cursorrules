@@ -1,0 +1,408 @@
+# blackSwan AI Backend - Cursor Rules
+
+## 项目概述
+
+blackSwan 是一个基于现实映射的自动演进式 RPG 游戏后端系统，采用 Golang + PostgreSQL 技术栈。
+
+## 核心铁律 (Critical Rules)
+
+### 1. 数据库铁律 (Database Schema - SSOT)
+
+**单一事实来源**: `.ai/database/schema.sql` 是数据库结构的唯一真理
+
+**强制要求**:
+- 生成任何 SQL 或 GORM 模型时，字段名、类型、约束必须严格匹配 `schema.sql`
+- 严禁臆造字段、表名或修改数据类型
+- 表名使用单数形式（player, market_order）
+- 字段使用下划线命名（created_at, player_id）
+- 金额/数量字段必须使用 NUMERIC(30, 10)，严禁使用 float
+- 所有主键使用 UUID，默认值为 gen_random_uuid()
+- 时间戳字段使用 TIMESTAMPTZ，默认值为 now()
+
+**Schema 同步机制**:
+- 严禁通过 Navicat/DataGrip 直接修改云端数据库结构
+- 所有结构变更必须先修改本地 `schema.sql`，然后通过 Atlas 工具推送
+- 编写代码时，默认 schema.sql 中的结构已同步至数据库
+- 不要编写 "CREATE TABLE IF NOT EXISTS" 检查逻辑，直接使用即可
+
+**GORM 模型生成规则**:
+```go
+// 正确示例：严格匹配 schema.sql
+type Player struct {
+    ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+    Nickname  string    `gorm:"type:text;not null"`
+    CreatedAt time.Time `gorm:"type:timestamptz;not null;default:now()"`
+    UpdatedAt time.Time `gorm:"type:timestamptz;not null;default:now()"`
+}
+
+// 错误示例：不要臆造字段
+type Player struct {
+    ID       uuid.UUID
+    Name     string    // 错误：schema.sql 中是 nickname 不是 name
+    Email    string    // 错误：schema.sql 中没有 email 字段
+    Age      int       // 错误：schema.sql 中没有 age 字段
+}
+```
+
+### 2. 接口铁律 (API Contract)
+
+**契约文档**: `.ai/api/api-reference.md` 是对外承诺的 API 契约
+
+**强制要求**:
+- 生成的 Handler 代码必须严格遵守 Request/Response 结构
+- 统一响应格式必须包含 request_id, server_time, data/error
+- 所有写操作必须支持 Idempotency-Key
+- 时间使用 Unix 秒或 RFC3339 (UTC)
+- 金额/数量使用字符串或 decimal，避免 float
+- Base URL 必须以 /v1 开头
+
+**Handler 示例**:
+```go
+// 正确示例：严格遵守 API 文档
+type PlaceOrderRequest struct {
+    Symbol         string `json:"symbol" binding:"required"`
+    Side           string `json:"side" binding:"required,oneof=BUY SELL"`
+    Type           string `json:"type" binding:"required,oneof=MARKET LIMIT"`
+    Qty            string `json:"qty" binding:"required"`
+    ClientOrderID  string `json:"client_order_id"`
+}
+
+type SuccessResponse struct {
+    RequestID  string      `json:"request_id"`
+    ServerTime int64       `json:"server_time"`
+    Data       interface{} `json:"data"`
+}
+
+// 错误示例：不要自创响应格式
+type Response struct {
+    Code    int         `json:"code"`     // 错误：API 文档中没有 code 字段
+    Message string      `json:"message"`  // 错误：应该在 error 对象中
+    Data    interface{} `json:"data"`
+}
+```
+
+### 3. 工程铁律 (Project Structure)
+
+**结构文档**: `project_structure.tree` 定义了代码组织方式
+
+**强制要求**:
+- 代码文件必须放置在正确的目录层级中
+- 严格遵守分层架构：Handler → Usecase → Repository → Domain
+- 严禁循环引用：Service 层不得引用 Controller/Handler 层
+- Domain 层不得依赖任何外部包（除标准库）
+- Repository 层只能被 Usecase 层调用
+
+**目录规范**:
+```
+cmd/                    # 应用入口
+internal/
+  ├── handler/         # HTTP/WebSocket 处理器（依赖 usecase）
+  ├── usecase/         # 业务逻辑层（依赖 repository, domain）
+  ├── repository/      # 数据访问层（依赖 domain）
+  ├── domain/          # 领域模型（不依赖其他层）
+  └── config/          # 配置
+pkg/                   # 公共库
+```
+
+**依赖规则**:
+```
+正确：
+handler → usecase → repository → domain
+handler → domain
+usecase → domain
+
+错误：
+usecase → handler        ❌ 循环依赖
+repository → usecase     ❌ 反向依赖
+domain → repository      ❌ 领域模型不应依赖基础设施
+```
+
+## 编码规范
+
+### 命名规范
+
+**禁止使用**:
+- Emoji 表情：🚀✅❌💡⚡⭐🌟🎨🔥🎉
+- 图形符号：→ ← ↑ ↓ ★ ☆ ◆ ◇ ● ○ ■ □ ▲ △
+- 特殊字符：※ ★ ☆ ♠ ♣ ♥ ♦
+- 过度装饰：=== --- ***
+
+**正确命名**:
+```go
+// 包命名：小写单词
+package marketengine
+
+// 接口命名：I + 名词
+type IMarketService interface {}
+
+// 结构体：大驼峰
+type MarketTick struct {}
+
+// 函数：大驼峰（公开）/ 小驼峰（私有）
+func CalculatePrice() {}
+func calculateDelta() {}
+
+// 变量：小驼峰
+var playerBalance int64
+
+// 常量：大驼峰或全大写
+const MaxDailySteps = 20000
+```
+
+### 注释规范
+
+```go
+// 正确：简洁实用
+// CalculateSourceReward 计算源点奖励
+// 基于 IoT 数据和当日风格配置计算玩家可获得的源点数量
+func CalculateSourceReward(steps int, styleConfig *StyleConfig) (int64, error) {
+    // 实现逻辑
+}
+
+// 错误：使用 emoji 或过度装饰
+// 🚀 CalculateSourceReward 计算源点奖励
+// ================================
+// ★★★ 重要函数 ★★★
+// ================================
+```
+
+### 错误处理
+
+```go
+// 正确：标准错误处理
+if err != nil {
+    return nil, fmt.Errorf("failed to calculate reward: %w", err)
+}
+
+// 定义业务错误
+var (
+    ErrInsufficientBalance = errors.New("insufficient balance")
+    ErrInvalidPrice = errors.New("invalid price")
+)
+```
+
+### 日志规范
+
+```go
+// 正确：结构化日志，无 emoji
+log.Info("order placed successfully",
+    "order_id", orderId,
+    "player_id", playerId,
+    "symbol", "AERA",
+)
+
+// 错误：使用 emoji
+log.Info("✅ 订单成功")  // ❌ 禁止
+```
+
+## 数据库操作规范
+
+### 使用 GORM
+
+```go
+// 正确：使用事务和错误处理
+func (r *OrderRepository) CreateOrder(order *Order) error {
+    return r.db.Transaction(func(tx *gorm.DB) error {
+        // 1. 创建订单
+        if err := tx.Create(order).Error; err != nil {
+            return fmt.Errorf("failed to create order: %w", err)
+        }
+        
+        // 2. 更新余额
+        if err := tx.Model(&PlayerBalance{}).
+            Where("player_id = ? AND asset = ?", order.PlayerID, "SOURCE").
+            Update("available_amount", gorm.Expr("available_amount - ?", order.TotalCost)).
+            Error; err != nil {
+            return fmt.Errorf("failed to update balance: %w", err)
+        }
+        
+        return nil
+    })
+}
+
+// 错误：不使用事务，可能导致数据不一致
+func (r *OrderRepository) CreateOrder(order *Order) error {
+    r.db.Create(order)  // ❌ 没有错误处理
+    r.db.Model(&PlayerBalance{}).Update(...)  // ❌ 不在同一事务中
+    return nil
+}
+```
+
+### 金额字段处理
+
+```go
+// 正确：使用 decimal 包
+import "github.com/shopspring/decimal"
+
+type Order struct {
+    RequestedQty decimal.Decimal `gorm:"type:numeric(30,10)"`
+    AvgPrice     decimal.Decimal `gorm:"type:numeric(30,10)"`
+}
+
+// 计算
+totalCost := order.RequestedQty.Mul(order.AvgPrice)
+
+// 错误：使用 float
+type Order struct {
+    RequestedQty float64  // ❌ 精度问题
+    AvgPrice     float64  // ❌ 精度问题
+}
+```
+
+## API 开发规范
+
+### 幂等性
+
+```go
+// 正确：支持幂等性
+func (h *OrderHandler) PlaceOrder(c *gin.Context) {
+    idempotencyKey := c.GetHeader("Idempotency-Key")
+    if idempotencyKey == "" {
+        c.JSON(400, ErrorResponse{Error: "Idempotency-Key is required"})
+        return
+    }
+    
+    // 检查是否已存在
+    existing, _ := h.orderService.GetByIdempotency(playerID, idempotencyKey)
+    if existing != nil {
+        c.JSON(200, SuccessResponse{Data: existing})
+        return
+    }
+    
+    // 创建新订单
+    order, err := h.orderService.PlaceOrder(req)
+    // ...
+}
+```
+
+### 统一响应格式
+
+```go
+type SuccessResponse struct {
+    RequestID  string      `json:"request_id"`
+    ServerTime int64       `json:"server_time"`
+    Data       interface{} `json:"data"`
+}
+
+type ErrorResponse struct {
+    RequestID  string       `json:"request_id"`
+    ServerTime int64        `json:"server_time"`
+    Error      ErrorDetail  `json:"error"`
+}
+
+type ErrorDetail struct {
+    Code    string      `json:"code"`
+    Message string      `json:"message"`
+    Details interface{} `json:"details,omitempty"`
+}
+```
+
+## 性能优化
+
+### 数据库查询
+
+```go
+// 正确：使用索引字段查询
+db.Where("player_id = ? AND created_at > ?", playerID, startTime).Find(&orders)
+
+// 正确：预加载关联数据
+db.Preload("Player").Preload("Position").Find(&orders)
+
+// 错误：N+1 查询问题
+for _, order := range orders {
+    db.First(&player, order.PlayerID)  // ❌ 循环查询
+}
+```
+
+### Redis 缓存
+
+```go
+// 正确：使用缓存
+func (s *WorldService) GetTodayStyle() (*StyleConfig, error) {
+    date := time.Now().Format("2006-01-02")
+    key := fmt.Sprintf("world:style:%s", date)
+    
+    // 尝试从缓存读取
+    cached, err := s.cache.Get(ctx, key).Result()
+    if err == nil {
+        return ParseStyleConfig(cached), nil
+    }
+    
+    // 缓存未命中，从数据库读取
+    config, err := s.repo.GetStyleByDate(date)
+    if err != nil {
+        return nil, err
+    }
+    
+    // 写入缓存
+    s.cache.Set(ctx, key, config.ToJSON(), 24*time.Hour)
+    return config, nil
+}
+```
+
+## Git 提交规范
+
+```bash
+# 格式: <type>: <subject>
+
+# 正确示例
+feat: 添加 IoT 数据同步接口
+fix: 修复行情推送延迟问题
+docs: 更新 API 文档
+refactor: 重构订单撮合逻辑
+perf: 优化数据库查询性能
+
+# 错误示例（使用 emoji）
+✨ feat: 添加新功能  # ❌ 禁止
+🚀 优化性能        # ❌ 禁止
+```
+
+## 测试规范
+
+```go
+// 正确：表驱动测试
+func TestCalculateSourceReward(t *testing.T) {
+    tests := []struct {
+        name     string
+        steps    int
+        expected int64
+        wantErr  bool
+    }{
+        {"正常步数", 1000, 100, false},
+        {"超过上限", 25000, 2000, false},
+        {"负数步数", -100, 0, true},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got, err := CalculateSourceReward(tt.steps)
+            if (err != nil) != tt.wantErr {
+                t.Errorf("CalculateSourceReward() error = %v, wantErr %v", err, tt.wantErr)
+                return
+            }
+            if got != tt.expected {
+                t.Errorf("CalculateSourceReward() = %v, want %v", got, tt.expected)
+            }
+        })
+    }
+}
+```
+
+## 参考文档
+
+- 核心架构：`.ai/docs/01-architecture.md`
+- 世界观设定：`.ai/docs/02-world-setting.md`
+- API 参考：`.ai/api/api-reference.md`
+- 数据库 Schema：`.ai/database/schema.sql`
+- 开发规范：`.ai/README.md`
+
+## 重要提醒
+
+1. 在编写代码前，先阅读相关文档确保理解业务逻辑
+2. 数据库字段必须与 schema.sql 完全一致
+3. API 接口必须与 api-reference.md 完全一致
+4. 遵守分层架构，避免循环依赖
+5. 禁止使用 emoji 和图形符号
+6. 使用 decimal 处理金额，避免 float
+7. 所有写操作支持幂等性
+8. 适当使用缓存优化性能
