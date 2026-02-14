@@ -10,12 +10,6 @@ env "local" {
   
   // Dev database: Used by Atlas to calculate schema diffs
   dev = "postgres://postgres:blackswan2024@localhost:5432/blackswan_dev?sslmode=disable"
-  
-  // Format of the schema files
-  format = {
-    // Enable HCL format
-    schema = "sql"
-  }
 }
 
 // Production environment (example)
