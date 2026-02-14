@@ -1,108 +1,163 @@
-# 快速启动指南
+# blackSwan Backend - 快速开始
 
-## 前置条件
+一个基于现实映射的自动演进式 RPG 游戏后端系统
 
-确保你已安装 Go 1.21+。如果未安装，请参考 `scripts/setup.md`。
+## 环境要求
 
-## 5 分钟启动
+- Docker Desktop
+- Go 1.21+
+- Git
 
-### 步骤 1: 配置环境变量（可选）
+## 一键启动 (推荐)
 
-```bash
-# 如果不配置，将使用默认值
-cp .env.example .env
-```
+```powershell
+# 1. 克隆项目
+git clone <repository-url>
+cd blackSwan-AI-backend
 
-默认配置:
-- 服务端口: 8080
-- 模式: debug
+# 2. 启动环境
+docker-compose up -d          # 启动数据库和缓存
+.\scripts\init-db.ps1         # 初始化数据库
 
-### 步骤 2: 启动服务
-
-#### 方式 1: 直接运行
-
-```bash
+# 3. 启动后端
 go run cmd/api/main.go
+
+# 访问 http://localhost:8080/health
 ```
 
-#### 方式 2: 使用 Makefile
+## 使用 Makefile (更简单)
 
-```bash
-make run
+```powershell
+make up          # 启动 Docker 服务
+make db-init     # 初始化数据库
+make run         # 启动后端服务
+
+# 其他命令
+make help        # 查看所有命令
+make logs        # 查看日志
+make db-reset    # 重置数据库
+make tools       # 启动管理工具
 ```
 
-#### 方式 3: 使用脚本
+## 验证环境
 
-```bash
-# Linux/macOS
-./scripts/run.sh
-
-# Windows PowerShell
-./scripts/run.ps1
-```
-
-### 步骤 3: 验证服务
-
-打开新终端，执行:
-
-```bash
-# 健康检查
-curl http://localhost:8080/health
-
-# 预期响应
-# {"status":"ok","service":"blackSwan-backend"}
+```powershell
+# 检查服务状态
+docker-compose ps
 
 # 测试 API
+curl http://localhost:8080/health
 curl http://localhost:8080/v1/ping
-
-# 预期响应
-# {"message":"pong"}
 ```
 
-### 步骤 4: 停止服务
+## 管理工具 (可选)
 
-在运行服务的终端按 `Ctrl+C`，服务将优雅关闭。
+```powershell
+make tools
 
-## 当前功能
-
-基础骨架已就绪，但业务逻辑尚未实现。
-
-当前可用接口:
-- `GET /health` - 健康检查
-- `GET /v1/ping` - 测试接口
-
-## 下一步
-
-查看 `DEVELOPMENT.md` 了解完整的开发计划。
-
-## 故障排查
-
-### 问题: go 命令未找到
-
-**解决方案**: 
-1. 确认 Go 已安装: 访问 https://go.dev/dl/
-2. 检查环境变量 PATH 中是否包含 Go 的 bin 目录
-
-### 问题: 端口 8080 已被占用
-
-**解决方案**:
-1. 修改 `.env` 文件，设置 `SERVER_PORT=9090`
-2. 或者杀掉占用端口的进程
-
-### 问题: 依赖下载失败
-
-**解决方案**:
-```bash
-# 设置 Go 代理（中国大陆）
-go env -w GOPROXY=https://goproxy.cn,direct
-
-# 重新下载
-go mod download
+# 访问
+# pgAdmin:         http://localhost:5050
+# Redis Commander: http://localhost:8081
 ```
 
-## 参考文档
+## 项目结构
 
-- 完整文档: `.ai/README.md`
-- 开发指南: `DEVELOPMENT.md`
-- 项目状态: `PROJECT_STATUS.md`
-- 环境配置: `scripts/setup.md`
+```
+blackSwan-AI-backend/
+├── cmd/api/              # 应用入口
+├── internal/             # 核心代码
+│   ├── domain/          # 领域模型
+│   ├── usecase/         # 业务逻辑
+│   ├── repository/      # 数据访问
+│   ├── transport/       # HTTP/WebSocket
+│   └── config/          # 配置
+├── .ai/                 # AI 工具文档
+│   ├── docs/           # 架构文档
+│   ├── database/       # 数据库 Schema
+│   └── api/            # API 文档
+└── scripts/            # 开发脚本
+```
+
+## 开发指南
+
+- 完整开发指南: `DEVELOPMENT.md`
+- Docker 配置: `README.Docker.md`
+- 环境配置: `scripts/dev-setup.md`
+- 编码规范: `.cursorrules`
+
+## 技术栈
+
+- **语言**: Go 1.21+
+- **框架**: Gin (HTTP), GORM (ORM)
+- **数据库**: PostgreSQL 15
+- **缓存**: Redis 7
+- **AI**: OpenAI API
+
+## 核心特性
+
+- 基于 IoT 数据的现实映射
+- AI 驱动的世界演进
+- 动态市场博弈系统
+- San 值精神状态管理
+- NPC 互动系统
+
+## 环境变量
+
+```env
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=blackswan2024
+DB_NAME=blackswan
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# LLM
+LLM_API_KEY=your_api_key_here
+```
+
+## 常见问题
+
+### Docker 无法启动
+确保 WSL 2 已安装: `wsl --update`
+
+### 端口被占用
+修改 `docker-compose.yml` 中的端口映射
+
+### 数据库连接失败
+检查容器状态: `docker-compose ps`
+
+详细故障排查: `scripts/dev-setup.md`
+
+## 团队协作
+
+确保所有成员使用相同的:
+- Docker 配置 (docker-compose.yml)
+- 环境变量模板 (.env.docker)
+- 数据库 Schema (.ai/database/schema.sql)
+
+## 贡献指南
+
+1. 阅读编码规范 (.cursorrules)
+2. 遵守三大铁律 (AGENTS.md)
+3. 编写测试
+4. 更新文档
+
+## License
+
+[待定]
+
+## 联系方式
+
+[待定]
+
+---
+
+**快速开始**: 3 个命令，5 分钟启动！
+
+```powershell
+docker-compose up -d && .\scripts\init-db.ps1 && go run cmd/api/main.go
+```

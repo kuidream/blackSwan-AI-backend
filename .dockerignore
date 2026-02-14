@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Environment
+.env
+.env.local
+*.env
+
+# IDE
+.idea
+.vscode
+.cursor
+*.swp
+*.swo
+
+# Build
+bin/
+dist/
+*.exe
+atlas.exe
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+*.test
+coverage.out
+
+# Database
+*.sql
+backup_*.sql
+
+# Dependencies
+vendor/
+
+# Documentation
+*.md
+!README.md

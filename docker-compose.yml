@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: blackswan-postgres
+    environment:
+      POSTGRES_DB: blackswan
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: blackswan2024
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # 可选: 挂载初始化脚本
+      # - ./.ai/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d blackswan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blackswan-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: blackswan-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blackswan-network
+
+  # 可选: Redis 管理界面
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: blackswan-redis-ui
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - blackswan-network
+    profiles:
+      - tools
+
+  # 可选: PostgreSQL 管理界面
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: blackswan-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@blackswan.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - blackswan-network
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+    name: blackswan_postgres_data
+  redis_data:
+    name: blackswan_redis_data
+  pgadmin_data:
+    name: blackswan_pgadmin_data
+
+networks:
+  blackswan-network:
+    name: blackswan_network
+    driver: bridge
